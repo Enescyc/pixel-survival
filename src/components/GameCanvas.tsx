@@ -110,6 +110,25 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
       ctx.fillStyle = '#2C3E50';
       ctx.fillRect(0, 0, width, height);
       
+      // Draw grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      const gridSize = 32;
+      
+      for (let x = 0; x < width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      
+      for (let y = 0; y < height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
       // Draw resources
       resources.forEach(resource => {
         const colors = {
@@ -144,14 +163,20 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
 
   // Resource depletion and game timer
   useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
     if (status === GameStatus.PLAYING) {
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         dispatch(updateResources());
         dispatch(updateGameTime());
       }, 1000);
-
-      return () => clearInterval(interval);
     }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, [dispatch, status]);
 
   return (
@@ -165,9 +190,11 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
       <ResourceBars />
       {status === GameStatus.MENU && <Menu />}
       {status === GameStatus.GAME_OVER && <GameOver />}
-      <div className="absolute bottom-4 right-4 text-white text-xl font-bold">
-        {Math.floor(gameTime / 60)}:{(gameTime % 60).toString().padStart(2, '0')}
-      </div>
+      {status === GameStatus.PLAYING && (
+        <div className="absolute bottom-4 right-4 text-white text-xl font-bold">
+          {Math.floor(gameTime / 60)}:{(gameTime % 60).toString().padStart(2, '0')}
+        </div>
+      )}
     </div>
   );
 }; 

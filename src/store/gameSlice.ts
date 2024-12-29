@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ResourceType } from '../game/entities/Resource';
+import { SoundManager } from '../game/systems/SoundManager';
 
 export enum GameStatus {
   MENU = 'MENU',
@@ -30,6 +31,10 @@ export interface GameState {
   playerResources: PlayerResources;
   lastResourceUpdate: number;
   gameTime: number; // Time in seconds
+  effects: {
+    resourceCollected: boolean;
+    lowResource: boolean;
+  };
 }
 
 const initialState: GameState = {
@@ -43,7 +48,11 @@ const initialState: GameState = {
     oxygen: 100
   },
   lastResourceUpdate: Date.now(),
-  gameTime: 10 // Changed from 60 to 10 seconds
+  gameTime: 60, // Changed from 10 to 60 seconds (1 minute)
+  effects: {
+    resourceCollected: false,
+    lowResource: false
+  }
 };
 
 const gameSlice = createSlice({
@@ -58,6 +67,8 @@ const gameSlice = createSlice({
       if (resource) {
         state.resources = state.resources.filter(r => r.id !== action.payload);
         state.score += 10;
+        state.effects.resourceCollected = true;
+        SoundManager.play('collect');
 
         switch (resource.type) {
           case ResourceType.FOOD:
@@ -73,9 +84,11 @@ const gameSlice = createSlice({
       }
     },
     updateResources: (state) => {
+      if (state.status !== GameStatus.PLAYING) return;
+
       const now = Date.now();
       const deltaTime = now - state.lastResourceUpdate;
-      const depletionRate = 5; // Changed from 10 to 5 (slower depletion)
+      const depletionRate = 5;
 
       const depletion = (depletionRate * deltaTime) / 1000;
 
@@ -83,11 +96,21 @@ const gameSlice = createSlice({
       state.playerResources.water = Math.max(0, state.playerResources.water - depletion);
       state.playerResources.oxygen = Math.max(0, state.playerResources.oxygen - depletion);
 
-      // Check if any resource is depleted - trigger game over
       if (state.playerResources.food <= 0 || 
           state.playerResources.water <= 0 || 
           state.playerResources.oxygen <= 0) {
         state.status = GameStatus.GAME_OVER;
+        SoundManager.stopBackground();
+        SoundManager.play('gameOver');
+        return;
+      }
+
+      const isLow = Object.values(state.playerResources).some(value => value < 30);
+      if (isLow && !state.effects.lowResource) {
+        state.effects.lowResource = true;
+        SoundManager.play('lowResource');
+      } else if (!isLow) {
+        state.effects.lowResource = false;
       }
 
       state.lastResourceUpdate = now;
@@ -95,23 +118,34 @@ const gameSlice = createSlice({
     startGame: (state) => {
       state.status = GameStatus.PLAYING;
       state.score = 0;
-      state.gameTime = 10; // Changed from 60 to 10 seconds
+      state.gameTime = 60;
       state.playerResources = {
         food: 100,
         water: 100,
         oxygen: 100
       };
       state.resources = [];
+      state.lastResourceUpdate = Date.now();
+      state.effects = {
+        resourceCollected: false,
+        lowResource: false
+      };
+      SoundManager.play('gameStart');
+      SoundManager.play('background');
     },
     gameOver: (state) => {
       state.status = GameStatus.GAME_OVER;
+      SoundManager.play('gameOver');
+      SoundManager.stopBackground();
     },
     updateGameTime: (state) => {
-      if (state.status === GameStatus.PLAYING) {
-        state.gameTime = Math.max(0, state.gameTime - 1);
-        if (state.gameTime === 0) {
-          state.status = GameStatus.GAME_OVER;
-        }
+      if (state.status !== GameStatus.PLAYING) return;
+
+      state.gameTime = Math.max(0, state.gameTime - 1);
+      if (state.gameTime === 0) {
+        state.status = GameStatus.GAME_OVER;
+        SoundManager.stopBackground();
+        SoundManager.play('gameOver');
       }
     }
   }
