@@ -21,6 +21,14 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<Player>(new Player(width / 2, height / 2));
   const keysRef = useRef<Set<string>>(new Set());
+  const resourcesRef = useRef<Resource[]>([]);
+
+  // Update resourcesRef when resources change
+  useEffect(() => {
+    resourcesRef.current = resources.map(r => 
+      new Resource(r.id, r.x, r.y, r.type)
+    );
+  }, [resources]);
 
   // Spawn resources periodically
   useEffect(() => {
@@ -92,15 +100,8 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
 
         playerRef.current.move(dx, dy, width, height);
 
-        resources.forEach(resource => {
-          const isColliding = (
-            resource.x < playerRef.current.x + playerRef.current.width &&
-            resource.x + resource.width > playerRef.current.x &&
-            resource.y < playerRef.current.y + playerRef.current.height &&
-            resource.y + resource.height > playerRef.current.y
-          );
-          
-          if (isColliding) {
+        resourcesRef.current.forEach(resource => {
+          if (resource.isColliding(playerRef.current)) {
             dispatch(collectResource(resource.id));
           }
         });
@@ -129,16 +130,9 @@ export const GameCanvas = ({ width, height }: GameCanvasProps) => {
         ctx.stroke();
       }
 
-      // Draw resources
-      resources.forEach(resource => {
-        const colors = {
-          [ResourceType.FOOD]: '#4CAF50',
-          [ResourceType.WATER]: '#2196F3',
-          [ResourceType.OXYGEN]: '#90CAF9'
-        };
-        
-        ctx.fillStyle = colors[resource.type];
-        ctx.fillRect(resource.x, resource.y, resource.width, resource.height);
+      // Draw resources using Resource class
+      resourcesRef.current.forEach(resource => {
+        resource.draw(ctx);
       });
       
       // Draw player
